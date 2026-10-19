@@ -2,8 +2,8 @@
 #   make test                       跑全部自動化檢查
 #   make build                      打包資料夾版並產生發行用 zip
 #   make onefile                    打包成單一 exe
-#   make release                    發行目前版本（檢查 → 打包 → 打 tag 推上去 → 上傳 GitHub Release）
-#   make release VERSION=1.2.0      先把版本號改成 1.2.0 並 commit，再發行
+#   make release                    發行下一個修訂版（1.0.0 已發行 → 發行 1.0.1；檢查 → 打包 → 打 tag 推上去 → 上傳 Release）
+#   make release VERSION=1.2.0      指定版本：先把版本號改成 1.2.0 並 commit，再發行
 #   make release-dry VERSION=1.2.0  演練發行：只檢查與打包，不 commit、不打 tag、不上傳
 #   make publish TAG=v1.2.0         只把已打包的 zip 上傳到 GitHub Release
 #   make icon                       重新產生程式圖示

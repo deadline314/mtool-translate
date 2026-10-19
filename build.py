@@ -3,9 +3,9 @@
 
     python build.py                       打包資料夾版（啟動快）並產生發行用 zip
     python build.py --onefile             打包成單一 exe（好傳送，但每次啟動要先解壓，比較慢）
-    python build.py release               本機完整發行目前版本
+    python build.py release               本機完整發行；目前版本已發行過就自動把修訂版號 +1（1.0.0 → 1.0.1）
     python build.py release --version 1.2.0
-                                          先把版本號改成 1.2.0 並 commit，再發行
+                                          指定版本：先把版本號改成 1.2.0 並 commit，再發行
     python build.py release --dry-run     只做檢查與打包，不 commit、不打 tag、不上傳
     python build.py publish --tag v1.2.0  把已打包的 zip 上傳到 GitHub Release（CI 用）
 
@@ -151,12 +151,38 @@ def _git(*args):
     return run(["git", *args], capture=True)
 
 
+def _semver(version):
+    if not SEMVER_RE.match(version or ""):
+        raise BuildError(f"版本號格式要像 1.2.0：{version}")
+    return tuple(int(x) for x in version.split("."))
+
+
+def bump_patch(version):
+    major, minor, patch = _semver(version)
+    return f"{major}.{minor}.{patch + 1}"
+
+
+def _tag_exists(tag):
+    return bool(_git("tag", "--list", tag) or _git("ls-remote", "--tags", "origin", f"refs/tags/{tag}"))
+
+
+def choose_version(current, requested):
+    """
+    要發行哪個版本：有指定就用指定的；沒指定時，目前版本已經發行過就把修訂版號 +1（1.0.0 → 1.0.1），
+    還沒發行過就發行目前版本（例如上次打包失敗、版本號已改好但還沒推上去，重跑時接著發同一版，不會跳號）。
+    """
+    if requested:
+        if _semver(requested) < _semver(current):
+            raise BuildError(f"指定的版本 {requested} 比目前的 {current} 還舊")
+        return requested
+    return bump_patch(current) if _tag_exists(f"v{current}") else current
+
+
 def release(new_version=None, dry_run=False, skip_tests=False):
     current = read_version()
-    version = new_version or current
-    if not SEMVER_RE.match(version):
-        raise BuildError(f"版本號格式要像 1.2.0：{version}")
-    tag = f"v{version}"
+    _semver(current)
+    if new_version:
+        _semver(new_version)
 
     # 1. git 狀態：在 main、沒有未 commit 的修改、沒有落後遠端
     branch = _git("rev-parse", "--abbrev-ref", "HEAD")
@@ -167,8 +193,12 @@ def release(new_version=None, dry_run=False, skip_tests=False):
     _git("fetch", "origin", "--tags")
     if int(_git("rev-list", "--count", "HEAD..origin/main") or 0):
         raise BuildError("本機 main 落後 origin/main，請先 git pull")
-    if _git("tag", "--list", tag) or _git("ls-remote", "--tags", "origin", f"refs/tags/{tag}"):
-        raise BuildError(f"版本 {version} 已經發行過，請用 --version 指定新的版本號（目前是 {current}）")
+    version = choose_version(current, new_version)
+    tag = f"v{version}"
+    if _tag_exists(tag):
+        raise BuildError(f"版本 {version} 已經發行過，請指定新的版本號，例如 make release VERSION={bump_patch(version)}")
+    if not new_version and version != current:
+        print(f"版本 {current} 已經發行過，這次自動發行 {version}")
     can_publish = gh_ready()
     if not can_publish:
         print("提醒：找不到 gh 或尚未登入，等一下只會推 tag，由 GitHub Actions 上傳 Release；"
@@ -193,8 +223,8 @@ def release(new_version=None, dry_run=False, skip_tests=False):
         build(skip_tests=skip_tests)
     except BuildError:
         if version != current:
-            print(f"打包失敗。版本號的 commit 還在本機、尚未推送；修正問題後重新執行 "
-                  f"python build.py release --version {version} 即可，不會重複 commit。")
+            print(f"打包失敗。版本號 {version} 的 commit 還在本機、尚未推送；修正問題後重新執行 "
+                  f"make release（或 python build.py release）會接著發行 {version}，不會重複 commit 也不會跳號。")
         raise
 
     # 4. 推 commit 與 tag，上傳 Release
@@ -213,7 +243,7 @@ def main():
                     help="build：打包（預設）；release：本機完整發行；publish：上傳已打包的 zip")
     ap.add_argument("--onefile", action="store_true", help="打包成單一 exe（啟動較慢）")
     ap.add_argument("--skip-tests", action="store_true", help="不先跑自動化檢查（不建議）")
-    ap.add_argument("--version", help="release：發行前把版本號改成這個（例如 1.2.0）")
+    ap.add_argument("--version", help="release：指定要發行的版本（例如 1.2.0）；不指定時自動把修訂版號 +1")
     ap.add_argument("--dry-run", action="store_true", help="release：只檢查與打包，不 commit、不打 tag、不上傳")
     ap.add_argument("--tag", help="publish：要上傳到哪個 tag 的 Release（例如 v1.2.0）")
     args = ap.parse_args()

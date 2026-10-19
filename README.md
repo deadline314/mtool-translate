@@ -30,13 +30,16 @@ make build
 ### 發行新版本
 
 ```bash
-make release VERSION=1.2.0
+make release
 ```
 
-會依序：檢查 git 狀態（要在 main、沒有未 commit 的修改、沒有落後遠端、版本沒發行過）→ 把版本號改成 1.2.0 並 commit → 跑全部檢查並打包 → 推 commit、打 tag `v1.2.0` 並推上去 → 把 zip 上傳到 GitHub Release。
+不指定版本時，會發行下一個修訂版：目前的 1.0.0 已經發行過，就自動改成 1.0.1 再發行。要跳到其他版本就指定，例如 `make release VERSION=1.2.0`（不能比目前的版本舊）。
 
+會依序：檢查 git 狀態（要在 main、沒有未 commit 的修改、沒有落後遠端、版本沒發行過）→ 把版本號改好並 commit → 跑全部檢查並打包 → 推 commit、打 tag（例如 `v1.0.1`）並推上去 → 把 zip 上傳到 GitHub Release。
+
+- 打包失敗時，改好的版本號只會留在本機、不會推上去；修正後再執行一次 `make release`，會接著發行同一個版本，不會跳號。
 - 推 tag 後 GitHub Actions 也會自動打包並上傳；本機與 GitHub Actions 走同一套步驟，誰先完成都沒關係，Release 已存在時會覆蓋同名附件。所以 GitHub Actions 不能用時，本機照樣能完整發行；本機沒裝 gh 時，則交給 GitHub Actions 上傳。
-- 想先演練：`make release-dry VERSION=1.2.0`，只做檢查與打包，不 commit、不打 tag、不上傳。
+- 想先演練：`make release-dry`（也可以加 `VERSION=1.2.0`），只做檢查與打包，不 commit、不打 tag、不上傳。
 - 只想補傳附件：`make publish TAG=v1.2.0`。
 - 上傳 Release 需要 [GitHub CLI](https://cli.github.com/) 並登入（`gh auth login`）。
 - 每次推到 main 或開 PR，GitHub Actions 會在 Windows 上跑全部自動化檢查；在 Actions 頁面手動執行「Release」則只打包並把 zip 存成 Artifact，不會發行。
