@@ -1,5 +1,5 @@
 """MTool 翻譯器核心（不依賴介面）。"""
-__version__ = "1.0.0"  # 唯一的版本號來源；發行時由 build.py release --version 更新
+__version__ = "1.0.0"  # 唯一的版本號來源；make release 會自動更新
 
 from .engines import (CATEGORIES, PROVIDER_BY_ID, PROVIDERS, ChatEngine, ClaudeEngine, Engine, GoogleFreeEngine,
                       LineEngine, MTEngine, MyMemoryEngine, OllamaEngine, OpenAICompatEngine, Provider, SakuraEngine,
