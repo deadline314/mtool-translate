@@ -86,6 +86,7 @@ class ReleaseFlowTest(unittest.TestCase):
             mock.patch.object(build, "read_version", lambda: self.version),
             mock.patch.object(build, "write_version", lambda v: setattr(self, "version", v)),
             mock.patch.object(build, "publish", lambda tag: self.cmds.append(["publish", tag])),
+            mock.patch.object(build, "print", create=True),  # 模擬發行的訊息不要混進測試輸出
         ]
         for p in patches:
             p.start()
