@@ -36,6 +36,6 @@ MTool 只能開一部分 Unity 遊戲，開不了的那些（特別是 IL2CPP �
 
 - Blocks：無
 - Blocked by：無
-- Related：MT-1、MT-3
+- Related：MT-1、MT-3、MT-6
 
 ---
