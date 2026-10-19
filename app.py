@@ -9,15 +9,13 @@ import time
 import tkinter as tk
 from tkinter import filedialog, messagebox, simpledialog, ttk
 
+from runtime import APP_ID, app_dir, resource_path, self_check
 from settings import load_settings, save_settings
 from translator import (CATEGORIES, LANGS, MTOOL_JSON, PHASE_TERMS, PHASE_TRANSLATE, PROVIDER_BY_ID, PROVIDERS,
                         ChatEngine, Job, JobConfig, LineEngine, TranslatorError, make_engine,
                         normalize_glossary, read_json, write_json_atomic)
-from ui_widgets import cjk_wrap, show_guide, tip
+from ui_widgets import cjk_wrap, enable_file_drop, show_guide, tip
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-SETTINGS_PATH = os.path.join(HERE, "settings.json")
-LOG_DIR = os.path.join(HERE, "logs")
 APP_TITLE = "MTool 翻譯器"
 SRC_LANGS = ["ja", "en", "zh-CN", "ko"]
 TGT_LANGS = ["zh-TW", "zh-CN", "en", "ja"]
@@ -40,10 +38,10 @@ def lang_label(code):
 
 
 class App:
-    def __init__(self, root, settings_path=SETTINGS_PATH):
+    def __init__(self, root, settings_path=None, open_file=None):
         self.root = root
-        self.settings_path = settings_path
-        self.s = load_settings(settings_path)
+        self.settings_path = settings_path or os.path.join(app_dir(), "settings.json")
+        self.s = load_settings(self.settings_path)
         self.q = queue.Queue()
         self.job = None
         self.worker = None
@@ -61,9 +59,17 @@ class App:
         root.geometry("940x860")
         root.minsize(820, 720)
         root.report_callback_exception = self._on_tk_error
+        try:
+            root.iconbitmap(default=resource_path(os.path.join("assets", "app.ico")))
+        except tk.TclError:
+            pass
         self._build()
         self._restore()
         root.protocol("WM_DELETE_WINDOW", self._on_close)
+        q = self.q
+        self.drop_enabled = enable_file_drop(root, lambda paths: q.put(("drop", paths)))
+        if open_file:  # 把檔案拖到程式圖示上開啟
+            self._on_files_dropped([open_file])
         root.after(100, self._poll)
         if not self.s["guide_seen"]:
             root.after(400, self._open_guide)
@@ -86,9 +92,9 @@ class App:
         f.columnconfigure(1, weight=1)
         self.in_var, self.out_var = tk.StringVar(), tk.StringVar()
         tip(ttk.Label(f, text="原文檔（MTool 匯出）"), "在 MTool 翻譯頁按「導出原文」產生的 ManualTransFile.json。"
-            ).grid(row=0, column=0, sticky="w", **pad)
+                                                 "可以直接把檔案拖進視窗。").grid(row=0, column=0, sticky="w", **pad)
         tip(self._lock(ttk.Entry(f, textvariable=self.in_var, state="readonly"), "readonly"),
-            "要翻譯的原文檔。請用右邊的「瀏覽…」選擇。").grid(row=0, column=1, sticky="ew", **pad)
+            "要翻譯的原文檔。把檔案拖進視窗任何地方，或用右邊的「瀏覽…」選擇。").grid(row=0, column=1, sticky="ew", **pad)
         tip(self._lock(ttk.Button(f, text="瀏覽…", command=self._pick_input)),
             "選擇 MTool 匯出的原文檔。同資料夾的術語表會一起載入。").grid(row=0, column=2, **pad)
         tip(ttk.Label(f, text="譯文輸出"), "翻譯結果要存到哪裡。翻完後在 MTool 用「加載翻譯文件」載入這個檔案。"
@@ -207,7 +213,8 @@ class App:
             None,
             ("自動擷取術語", self._extract, lambda: self._extract_help()),
             None,
-            ("匯入…", self._import_terms, "從 JSON 檔匯入術語（格式：{\"原文\": \"譯名\"}），同名的會被覆蓋。"),
+            ("匯入…", self._import_terms, "從 JSON 檔匯入術語（格式：{\"原文\": \"譯名\"}），同名的會被覆蓋。"
+                                         "也可以直接把 *.glossary.json 拖進視窗。"),
             ("匯出…", self._export_terms, "把術語表存成 JSON 檔，可以給其他遊戲或其他人使用。"),
         ]:
             if spec is None:
@@ -543,8 +550,10 @@ class App:
         if not self._need_input():
             return
         path = filedialog.askopenfilename(parent=self.root, filetypes=[("JSON", "*.json")])
-        if not path:
-            return
+        if path:
+            self._import_terms_from(path)
+
+    def _import_terms_from(self, path):
         try:
             data = normalize_glossary(read_json(path))
         except (OSError, ValueError) as e:
@@ -695,7 +704,7 @@ class App:
         if self.job:
             text = "執行中…可以隨時按「停止」，已完成的部分會保留。"
         elif not self.in_var.get():
-            text = "下一步：① 按「瀏覽…」選擇 MTool 匯出的原文檔（ManualTransFile.json）"
+            text = "下一步：① 把 MTool 匯出的 ManualTransFile.json 拖進視窗，或按「瀏覽…」選擇"
         elif self.translated_once:
             text = "下一步：到 MTool 翻譯頁按「加載翻譯文件」，選擇輸出檔"
         elif self.tested_provider != self.provider.id:
@@ -761,6 +770,8 @@ class App:
             self._log(f"＝＝ 擷取術語{status}：新增 {len(found)} 個，請檢查譯名後再開始翻譯 ＝＝")
         elif kind == "fatal":
             self._on_fatal(*val)
+        elif kind == "drop":
+            self._on_files_dropped(val)
 
     def _merge_terms(self, found, gp):
         added = {k: v for k, v in found.items() if k not in self.glossary}
@@ -802,6 +813,27 @@ class App:
         if not self.closing:
             messagebox.showerror("已中止", f"{msg}\n\n{hint}", parent=self.root)
 
+    def _on_files_dropped(self, paths):
+        """拖進視窗的檔案：原文檔就載入，*.glossary.json 就合併進術語表。"""
+        if self.job:
+            messagebox.showinfo("執行中", "翻譯進行中，請先按「停止」再更換檔案。", parent=self.root)
+            return
+        jsons = [p for p in paths if p.lower().endswith(".json") and os.path.isfile(p)]
+        if not jsons:
+            messagebox.showwarning("不支援的檔案", "請拖入 MTool 匯出的原文檔（.json），或術語表（.glossary.json）。",
+                                   parent=self.root)
+            return
+        glossaries = [p for p in jsons if p.lower().endswith(".glossary.json")]
+        sources = [p for p in jsons if p not in glossaries]
+        if sources:
+            self._set_input(sources[0])
+            self._log(f"已載入原文檔：{sources[0]}")
+            if len(sources) > 1:
+                self._log(f"一次只能翻一份原文檔，其餘 {len(sources) - 1} 個已略過")
+        for g in glossaries:
+            if self._need_input():
+                self._import_terms_from(g)
+
     def _open_guide(self):
         def seen():
             self.s["guide_seen"] = True
@@ -833,21 +865,40 @@ class App:
             self.root.destroy()
 
 
-def setup_logging():
-    os.makedirs(LOG_DIR, exist_ok=True)
-    handler = logging.handlers.RotatingFileHandler(os.path.join(LOG_DIR, "mtool-translate.log"),
+def setup_logging(base):
+    log_dir = os.path.join(base, "logs")
+    os.makedirs(log_dir, exist_ok=True)
+    handler = logging.handlers.RotatingFileHandler(os.path.join(log_dir, "mtool-translate.log"),
                                                    maxBytes=1_000_000, backupCount=3, encoding="utf-8")
     handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
     logging.basicConfig(level=logging.INFO, handlers=[handler])
     threading.excepthook = lambda a: log.error("thread error", exc_info=(a.exc_type, a.exc_value, a.exc_traceback))
 
 
-def main():
-    setup_logging()
+def _startup_check():
+    """照雙擊啟動的方式建立主視窗（不顯示、不寫入設定），確認程式真的開得起來。"""
+    root = tk.Tk()
+    root.withdraw()
+    try:
+        app = App(root)
+        root.update()
+        return f"設定檔：{app.settings_path}；拖放：{'可用' if app.drop_enabled else '不可用'}"
+    finally:
+        root.destroy()
+
+
+def main(argv=None):
+    argv = sys.argv[1:] if argv is None else argv
+    base = app_dir()
+    if "--self-check" in argv:
+        sys.exit(self_check(base, [("主視窗啟動", _startup_check)]))
+    setup_logging(base)
     if sys.platform == "win32":
         try:
             import ctypes
             ctypes.windll.shcore.SetProcessDpiAwareness(1)
+            # 工作列顯示自己的圖示，而不是 Python 的
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(APP_ID)
         except (AttributeError, OSError):
             pass
     root = tk.Tk()
@@ -855,7 +906,8 @@ def main():
         ttk.Style().theme_use("vista" if sys.platform == "win32" else "clam")
     except tk.TclError:
         pass
-    App(root)
+    open_file = next((a for a in argv if not a.startswith("--") and os.path.isfile(a)), None)
+    App(root, open_file=open_file)
     root.mainloop()
 
 

@@ -1,4 +1,6 @@
 """介面小元件：滑鼠停留說明（Tooltip）與使用說明視窗。"""
+import logging
+import sys
 import tkinter as tk
 from tkinter import font as tkfont
 from tkinter import ttk
@@ -9,7 +11,8 @@ GUIDE_TEXT = """MTool 翻譯器使用說明
    用 MTool 開啟遊戲 → 翻譯頁 →「導出原文」，會得到 ManualTransFile.json。
 
 2. 選擇原文檔
-   按「原文檔」旁的「瀏覽…」選擇剛匯出的檔案。
+   把剛匯出的檔案直接拖進翻譯器視窗，或按「原文檔」旁的「瀏覽…」選擇。
+   也可以把檔案拖到翻譯器的程式圖示上，開啟時就會直接載入。
    譯文預設存到同資料夾的「*_translated.json」，術語表存在「*.glossary.json」。
 
 3. 選擇翻譯引擎並測試連線
@@ -21,7 +24,8 @@ GUIDE_TEXT = """MTool 翻譯器使用說明
 
 4.（建議）自動擷取術語
    按術語表分頁的「自動擷取術語」，讓 AI 先掃過全文，找出角色名、地名、物品等專有名詞。
-   檢查並修改譯名後再開始翻譯，全篇名詞就會一致。也可以手動新增、匯入術語。
+   檢查並修改譯名後再開始翻譯，全篇名詞就會一致。也可以手動新增、匯入術語，
+   或直接把別的 *.glossary.json 拖進視窗合併進來。
 
 5. 開始翻譯
    進度列會顯示已處理數量、失敗、速度與預估剩餘時間。
@@ -37,6 +41,71 @@ GUIDE_TEXT = """MTool 翻譯器使用說明
 ・在「遊戲背景」寫下角色設定與語氣，LLM 的翻譯會更貼近原作。
 ・API 金鑰只存在本機的 settings.json，不會上傳到別處。
 """
+
+
+def enable_file_drop(widget, on_drop):
+    """
+    讓視窗接受從檔案總管拖進來的檔案（Windows 原生拖放，不需額外套件）。
+    on_drop(路徑清單) 會在 Windows 訊息處理中被呼叫，裡面不要做耗時的事。
+    回傳是否啟用成功（非 Windows 或系統呼叫失敗時回傳 False，程式照常運作，只是不能拖放）。
+    """
+    if sys.platform != "win32":
+        return False
+    try:
+        import ctypes
+        from ctypes import wintypes
+        user32, shell32 = ctypes.windll.user32, ctypes.windll.shell32
+        WM_DROPFILES, GWLP_WNDPROC = 0x0233, -4
+        LRESULT = ctypes.c_ssize_t
+        WNDPROC = ctypes.WINFUNCTYPE(LRESULT, wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM)
+        user32.GetParent.restype = wintypes.HWND
+        user32.GetParent.argtypes = [wintypes.HWND]
+        user32.SetWindowLongPtrW.restype = ctypes.c_void_p
+        user32.SetWindowLongPtrW.argtypes = [wintypes.HWND, ctypes.c_int, ctypes.c_void_p]
+        user32.DefWindowProcW.restype = LRESULT
+        user32.DefWindowProcW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
+        user32.CallWindowProcW.restype = LRESULT
+        user32.CallWindowProcW.argtypes = [ctypes.c_void_p, wintypes.HWND, wintypes.UINT, wintypes.WPARAM,
+                                           wintypes.LPARAM]
+        shell32.DragAcceptFiles.argtypes = [wintypes.HWND, wintypes.BOOL]
+        shell32.DragQueryFileW.restype = wintypes.UINT
+        shell32.DragQueryFileW.argtypes = [ctypes.c_void_p, wintypes.UINT, ctypes.c_wchar_p, wintypes.UINT]
+        shell32.DragFinish.argtypes = [ctypes.c_void_p]
+
+        widget.update_idletasks()
+        hwnd = user32.GetParent(widget.winfo_id()) or widget.winfo_id()  # Tk 的頂層視窗外框
+        old_proc = None
+
+        def proc(h, msg, wparam, lparam):
+            if msg == WM_DROPFILES:
+                try:
+                    count = shell32.DragQueryFileW(wparam, 0xFFFFFFFF, None, 0)
+                    paths = []
+                    for i in range(count):
+                        n = shell32.DragQueryFileW(wparam, i, None, 0)
+                        buf = ctypes.create_unicode_buffer(n + 1)
+                        shell32.DragQueryFileW(wparam, i, buf, n + 1)
+                        paths.append(buf.value)
+                    on_drop(paths)
+                except Exception:
+                    logging.getLogger(__name__).exception("file drop failed")
+                finally:
+                    shell32.DragFinish(wparam)
+                return 0
+            if old_proc is None:  # 理論上不會發生：掛上去之前就收到訊息
+                return user32.DefWindowProcW(h, msg, wparam, lparam)
+            return user32.CallWindowProcW(old_proc, h, msg, wparam, lparam)
+
+        callback = WNDPROC(proc)
+        old_proc = user32.SetWindowLongPtrW(hwnd, GWLP_WNDPROC, ctypes.cast(callback, ctypes.c_void_p))
+        if not old_proc:
+            return False
+        shell32.DragAcceptFiles(hwnd, True)
+        widget._file_drop_callback = callback  # 留住參照，避免被回收後 Windows 呼叫到無效位址
+        return True
+    except (AttributeError, OSError):
+        logging.getLogger(__name__).exception("enable file drop failed")
+        return False
 
 
 def cjk_wrap(text):

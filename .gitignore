@@ -3,3 +3,6 @@ __pycache__/
 *.tmp
 .omc/
 logs/
+build/
+dist/
+self-check.txt

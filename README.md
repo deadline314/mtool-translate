@@ -4,6 +4,27 @@
 
 ## 安裝與啟動
 
+### 直接用打包好的程式（不需要 Python）
+
+```bash
+python build.py
+```
+
+完成後打開 `dist\MTool翻譯器\MTool翻譯器.exe` 即可；可以對它按右鍵 →「傳送到」→「桌面（建立捷徑）」，之後從桌面一鍵開啟。
+要給別人用，傳 `dist\MTool翻譯器.zip`，對方解壓後直接開 exe。設定與記錄存在 exe 旁邊，整個資料夾帶著走就好；
+更新版本時把新的 zip 解壓覆蓋舊資料夾，設定會保留。
+
+打包腳本會依序：安裝打包工具 → 跑全部自動化檢查 → 打包 → 用打包好的程式跑自我檢查（包含真的把主視窗建起來），任何一步失敗就停止。所有打包設定都在 `build.py` 裡，不需要另外維護設定檔。
+
+| 打包方式 | 指令 | 啟動時間（實測） | 適合 |
+|---|---|---|---|
+| 資料夾版（預設） | `python build.py` | 約 0.6 秒 | 日常使用 |
+| 單一 exe | `python build.py --onefile` | 約 1.7 秒 | 只想傳一個檔案 |
+
+單一 exe 每次開啟都要先把內容解壓到暫存資料夾，所以比較慢，也比較容易被防毒軟體誤判。
+
+### 從原始碼執行
+
 需要 Python 3.10 以上（Windows 版 Python 已內建 tkinter）。
 
 ```bash
@@ -16,7 +37,7 @@ python app.py
 ## 使用流程
 
 1. 用 MTool 開啟遊戲 → 翻譯頁 →「導出原文」，得到 `ManualTransFile.json`。
-2. 在翻譯器選擇這個檔案，譯文預設輸出到同資料夾的 `ManualTransFile_translated.json`。
+2. 把這個檔案拖進翻譯器視窗（或按「瀏覽…」選擇，或直接拖到 exe 圖示上開啟），譯文預設輸出到同資料夾的 `ManualTransFile_translated.json`。
 3. 選翻譯引擎，按「測試連線」確認可用。
 4. （建議）按「自動擷取術語」，檢查、修改術語表裡的譯名。
 5. 按「開始翻譯」。
@@ -45,7 +66,7 @@ python app.py
 - **前文參考**：每批附上前面幾句的原文與已完成的譯文。批次是邊做邊送，後面的批次看得到前面剛翻好的譯文。
 - **遊戲背景**：可以寫角色設定、語氣，會放進系統提示詞。
 
-術語表存在原文檔旁邊的 `*.glossary.json`，格式與 MTool 翻譯檔相同（`{"原文": "譯名"}`）。
+術語表存在原文檔旁邊的 `*.glossary.json`，格式與 MTool 翻譯檔相同（`{"原文": "譯名"}`）。把別的 `*.glossary.json` 拖進視窗會合併進目前的術語表。
 
 ## 控制碼保護
 
@@ -63,7 +84,9 @@ python app.py
 | 連續多批全部失敗、或連續多次請求被拒絕 | 判定設定有問題，自動中止，避免白白浪費額度 |
 | 既有輸出檔損壞 | 拒絕覆蓋，請使用者先改名或移走 |
 
-詳細記錄寫在 `logs/mtool-translate.log`（自動輪替，最多約 4 MB）。
+詳細記錄寫在程式旁邊的 `logs/mtool-translate.log`（自動輪替，最多約 4 MB）。程式放在不能寫入的資料夾（例如 Program Files）時，設定與記錄改存到 `%APPDATA%\MToolTranslator`。
+
+遇到問題時可以執行 `MTool翻譯器.exe --self-check`（或 `python app.py --self-check`），會在旁邊產生 `self-check.txt`，列出每個元件是否正常。
 
 ## 開發
 
@@ -77,6 +100,7 @@ python -m unittest discover -s tests -t .
   - `formats.py`：翻譯檔格式。新增格式（例如 Unity XUnity）：繼承 `TranslationFormat`
   - `text.py`：控制碼遮罩、回應解析、術語表整理
   - `errors.py`：錯誤分類
-- `app.py`：Tkinter 介面；`ui_widgets.py`：Hover 說明與使用說明；`settings.py`：設定讀寫與舊版轉換
+- `app.py`：Tkinter 介面；`ui_widgets.py`：Hover 說明、使用說明、檔案拖放；`settings.py`：設定讀寫與舊版轉換；`runtime.py`：設定存放位置、打包資源、自我檢查
+- `build.py`：打包；`tools/make_icon.py`：重新產生圖示（只有改圖示時需要）
 - `tests/`：自我檢查。引擎測試用本機假伺服器模擬各家 API，介面測試會開真的視窗操作一遍
 - `settings.json`：介面設定與 API 金鑰（明碼存放在本機，已加入 `.gitignore`）
