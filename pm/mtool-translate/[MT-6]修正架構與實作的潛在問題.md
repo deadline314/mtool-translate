@@ -67,7 +67,7 @@
 
 - Blocks：無
 - Blocked by：無
-- Related：MT-1、MT-2、MT-3、MT-4、MT-5、MT-7
+- Related：MT-1、MT-2、MT-3、MT-4、MT-5、MT-7、MT-8
 
 ---
 

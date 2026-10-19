@@ -40,7 +40,7 @@
 
 - Blocks：無
 - Blocked by：無
-- Related：MT-2、MT-3、MT-4、MT-6
+- Related：MT-2、MT-3、MT-4、MT-6、MT-9
 
 ---
 
