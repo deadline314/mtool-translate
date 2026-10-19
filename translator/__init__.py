@@ -1,4 +1,6 @@
 """MTool 翻譯器核心（不依賴介面）。"""
+__version__ = "1.0.0"  # 唯一的版本號來源；發行時由 build.py release --version 更新
+
 from .engines import (CATEGORIES, PROVIDER_BY_ID, PROVIDERS, ChatEngine, ClaudeEngine, Engine, GoogleFreeEngine,
                       LineEngine, MTEngine, MyMemoryEngine, OllamaEngine, OpenAICompatEngine, Provider, SakuraEngine,
                       make_engine)
@@ -14,5 +16,5 @@ __all__ = [
     "TranslatorError", "FatalError", "RateLimitError", "RequestError", "TransientError", "Cancelled",
     "FORMATS", "MTOOL_JSON", "TranslationFormat", "read_json", "write_json_atomic",
     "Job", "JobConfig", "Progress", "PHASE_TRANSLATE", "PHASE_TERMS",
-    "LANGS", "normalize_glossary",
+    "LANGS", "normalize_glossary", "__version__",
 ]

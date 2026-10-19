@@ -11,12 +11,12 @@ from tkinter import filedialog, messagebox, simpledialog, ttk
 
 from runtime import APP_ID, app_dir, resource_path, self_check
 from settings import load_settings, save_settings
-from translator import (CATEGORIES, LANGS, MTOOL_JSON, PHASE_TERMS, PHASE_TRANSLATE, PROVIDER_BY_ID, PROVIDERS,
+from translator import (__version__, CATEGORIES, LANGS, MTOOL_JSON, PHASE_TERMS, PHASE_TRANSLATE, PROVIDER_BY_ID, PROVIDERS,
                         ChatEngine, Job, JobConfig, LineEngine, TranslatorError, make_engine,
                         normalize_glossary, read_json, write_json_atomic)
 from ui_widgets import cjk_wrap, enable_file_drop, show_guide, tip
 
-APP_TITLE = "MTool 翻譯器"
+APP_TITLE = f"MTool 翻譯器 {__version__}"
 SRC_LANGS = ["ja", "en", "zh-CN", "ko"]
 TGT_LANGS = ["zh-TW", "zh-CN", "en", "ja"]
 MAX_LOG_LINES = 2000          # 記錄區最多保留幾行，避免大量失敗訊息吃光記憶體、拖慢畫面

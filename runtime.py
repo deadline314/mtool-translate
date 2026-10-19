@@ -94,7 +94,9 @@ def self_check(out_dir, extra_checks=()):
         check(f"引擎：{p.name}", lambda p=p: engine_check(p))
     for name, fn in extra_checks:
         check(name, fn)
-    lines.insert(0, f"{'全部通過' if ok else '有項目失敗'}（{'打包版' if FROZEN else '原始碼'}，Python {sys.version.split()[0]}）")
+    from translator import __version__
+    lines.insert(0, f"{'全部通過' if ok else '有項目失敗'}（版本 {__version__}，{'打包版' if FROZEN else '原始碼'}，"
+                    f"Python {sys.version.split()[0]}）")
     with open(os.path.join(out_dir, "self-check.txt"), "w", encoding="utf-8") as f:
         f.write("\n".join(lines) + "\n")
     return 0 if ok else 1

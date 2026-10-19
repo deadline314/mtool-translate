@@ -1,0 +1,41 @@
+# 推 v* tag 時自動打包並上傳到 GitHub Release；手動執行（Run workflow）只打包、把 zip 存成 Artifact，不發行。
+# 跟本機 `make release` 走同一套步驟（build.py），本機先發行過也沒關係：Release 已存在時會覆蓋同名附件。
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      PYTHONUTF8: "1"
+      PYTHONIOENCODING: utf-8
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+          cache: pip
+      - name: 打包並驗證（含全部自動化檢查與打包後自我檢查）
+        run: python build.py
+      - uses: actions/upload-artifact@v7
+        with:
+          name: MToolTranslator-windows
+          path: dist/MToolTranslator-*.zip
+          if-no-files-found: error
+      - name: 上傳到 GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python build.py publish --tag ${{ github.ref_name }}

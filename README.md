@@ -6,22 +6,40 @@
 
 ### 直接用打包好的程式（不需要 Python）
 
+到 GitHub 的 [Releases](https://github.com/deadline314/mtool-translate/releases) 下載最新的 `MToolTranslator-v<版本>-windows.zip`，解壓後打開 `MTool翻譯器\MTool翻譯器.exe`。可以對它按右鍵 →「傳送到」→「桌面（建立捷徑）」，之後從桌面一鍵開啟。
+
+設定與記錄存在 exe 旁邊，整個資料夾帶著走就好；更新版本時把新的 zip 解壓覆蓋舊資料夾，設定會保留。
+
+### 自己打包
+
 ```bash
-python build.py
+make build
 ```
 
-完成後打開 `dist\MTool翻譯器\MTool翻譯器.exe` 即可；可以對它按右鍵 →「傳送到」→「桌面（建立捷徑）」，之後從桌面一鍵開啟。
-要給別人用，傳 `dist\MTool翻譯器.zip`，對方解壓後直接開 exe。設定與記錄存在 exe 旁邊，整個資料夾帶著走就好；
-更新版本時把新的 zip 解壓覆蓋舊資料夾，設定會保留。
+沒有 make 的話用 `python build.py`，效果一樣。完成後程式在 `dist\MTool翻譯器\MTool翻譯器.exe`，發行用的 zip 在 `dist\MToolTranslator-v<版本>-windows.zip`。
 
 打包腳本會依序：安裝打包工具 → 跑全部自動化檢查 → 打包 → 用打包好的程式跑自我檢查（包含真的把主視窗建起來），任何一步失敗就停止。所有打包設定都在 `build.py` 裡，不需要另外維護設定檔。
 
 | 打包方式 | 指令 | 啟動時間（實測） | 適合 |
 |---|---|---|---|
-| 資料夾版（預設） | `python build.py` | 約 0.6 秒 | 日常使用 |
-| 單一 exe | `python build.py --onefile` | 約 1.7 秒 | 只想傳一個檔案 |
+| 資料夾版（預設） | `make build` | 約 0.6 秒 | 日常使用 |
+| 單一 exe | `make onefile` | 約 1.7 秒 | 只想傳一個檔案 |
 
 單一 exe 每次開啟都要先把內容解壓到暫存資料夾，所以比較慢，也比較容易被防毒軟體誤判。
+
+### 發行新版本
+
+```bash
+make release VERSION=1.2.0
+```
+
+會依序：檢查 git 狀態（要在 main、沒有未 commit 的修改、沒有落後遠端、版本沒發行過）→ 把版本號改成 1.2.0 並 commit → 跑全部檢查並打包 → 推 commit、打 tag `v1.2.0` 並推上去 → 把 zip 上傳到 GitHub Release。
+
+- 推 tag 後 GitHub Actions 也會自動打包並上傳；本機與 GitHub Actions 走同一套步驟，誰先完成都沒關係，Release 已存在時會覆蓋同名附件。所以 GitHub Actions 不能用時，本機照樣能完整發行；本機沒裝 gh 時，則交給 GitHub Actions 上傳。
+- 想先演練：`make release-dry VERSION=1.2.0`，只做檢查與打包，不 commit、不打 tag、不上傳。
+- 只想補傳附件：`make publish TAG=v1.2.0`。
+- 上傳 Release 需要 [GitHub CLI](https://cli.github.com/) 並登入（`gh auth login`）。
+- 每次推到 main 或開 PR，GitHub Actions 會在 Windows 上跑全部自動化檢查；在 Actions 頁面手動執行「Release」則只打包並把 zip 存成 Artifact，不會發行。
 
 ### 從原始碼執行
 
@@ -91,8 +109,10 @@ python app.py
 ## 開發
 
 ```bash
-python -m unittest discover -s tests -t .
+make test
 ```
+
+（或 `python -m unittest discover -s tests -t .`）
 
 - `translator/`：翻譯核心，不依賴介面
   - `engines.py`：引擎與服務清單。新增引擎：寫一個子類別、在 `_FACTORIES` 註冊、在 `PROVIDERS` 加一筆，介面會自動出現
@@ -101,6 +121,7 @@ python -m unittest discover -s tests -t .
   - `text.py`：控制碼遮罩、回應解析、術語表整理
   - `errors.py`：錯誤分類
 - `app.py`：Tkinter 介面；`ui_widgets.py`：Hover 說明、使用說明、檔案拖放；`settings.py`：設定讀寫與舊版轉換；`runtime.py`：設定存放位置、打包資源、自我檢查
-- `build.py`：打包；`tools/make_icon.py`：重新產生圖示（只有改圖示時需要）
+- `build.py`：打包與發行；`Makefile`：常用指令捷徑；`.github/workflows/`：自動檢查與自動發行；`tools/make_icon.py`：重新產生圖示（只有改圖示時需要）
+- 版本號只寫在 `translator/__init__.py` 的 `__version__`，視窗標題、自我檢查、發行檔名都從這裡讀
 - `tests/`：自我檢查。引擎測試用本機假伺服器模擬各家 API，介面測試會開真的視窗操作一遍
 - `settings.json`：介面設定與 API 金鑰（明碼存放在本機，已加入 `.gitignore`）
