@@ -38,7 +38,7 @@
 
 - Blocks：無
 - Blocked by：無
-- Related：MT-6、MT-9
+- Related：MT-6、MT-9、MT-10
 
 ---
 
